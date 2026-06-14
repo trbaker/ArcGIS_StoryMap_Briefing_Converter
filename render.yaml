@@ -1,0 +1,31 @@
+# Render Blueprint. In Render: New > Blueprint, point it at this repo, and it
+# provisions the service below. Fill the secret env vars when prompted.
+services:
+  - type: web
+    name: ppt2briefing
+    runtime: python
+    plan: starter            # 512 MB RAM / 0.5 CPU, $7/mo flat
+    region: oregon           # pick the region closest to you
+    buildCommand: pip install -r requirements.txt && pip install --no-deps "arcgis>=2.3,<2.5"
+    # One worker + a few threads keeps a single arcgis copy resident (memory).
+    # --timeout 0 lets a long build stream without the worker being killed.
+    # --max-requests recycles the worker periodically to reclaim memory.
+    startCommand: >
+      gunicorn app:app --bind 0.0.0.0:$PORT
+      --workers 1 --threads 4 --timeout 0
+      --max-requests 50 --max-requests-jitter 10
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: APP_SECRET_KEY      # generated once and kept stable across deploys
+        generateValue: true
+      - key: ARCGIS_PORTAL
+        value: https://www.arcgis.com
+      - key: ARCGIS_CLIENT_ID    # fill in the Render dashboard (not stored in git)
+        sync: false
+      - key: ARCGIS_CLIENT_SECRET
+        sync: false
+      - key: ARCGIS_REDIRECT_URI # set to https://<your-service>.onrender.com/oauth/callback
+        sync: false

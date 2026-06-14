@@ -1,0 +1,23 @@
+# App + ArcGIS MINIMAL dependency set (no numpy / pandas / scipy / shapely / pyproj).
+# These install normally. `arcgis` itself is installed SEPARATELY with --no-deps
+# in the build step (see render.yaml / Dockerfile), so its heavy default
+# dependency tree is skipped. This is Esri's documented "minimum dependencies"
+# install for connecting to a Web GIS and doing content-management tasks.
+
+Flask>=3.0,<4.0
+gunicorn>=21.2
+cryptography>=42.0
+python-pptx>=0.6.23
+
+# ArcGIS minimal runtime deps (lightweight, pure-Python or wheels):
+ujson
+six
+requests>=2.31
+requests-toolbelt
+requests-oauthlib
+requests_ntlm2
+
+# NOTE: enterprise-only auth helpers (requests-kerberos, requests-gssapi) are
+# intentionally omitted — we authenticate to ArcGIS Online via OAuth, and those
+# need system krb5 libraries to build. If a deploy ever reports one missing,
+# add it here (and the krb5 apt packages in the Dockerfile).
