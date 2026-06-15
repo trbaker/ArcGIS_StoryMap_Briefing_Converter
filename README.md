@@ -10,9 +10,12 @@ not eliminate it.
 
 The majority of the code was developed by Claude Opus 4.8 
 
+### Signing in
 The tool only supports ArcGIS Online logins (regular username/passwords).  <b>An SSO/enterprise-based login will not work.</b> While the tool has not been 
 tested on a ArcGIS Onlien Public account, you may consider using one to inject your PowerPoint.  Once the Briefing has been created, share it to Public and 
-allow the Briefing to be Duplicated during the Share process (untested).
+allow the Briefing to be Duplicated during the Share process (untested).  Never use administrator credentials in an app like this; use an account with Publisher level permissions.
+
+To the best of my (limited) knowledge, this app works as advertised and is safe.  There are no terms of service or privacy policy for this app, however ArcGIS Online offers both.
 
 Send me feedback or enhancement requests.  
 
