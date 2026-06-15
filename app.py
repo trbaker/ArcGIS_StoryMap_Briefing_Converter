@@ -1,4 +1,4 @@
-# Build marker 2026-06-15c — fixes briefing slide creation (Briefing.add(slide=...) + flexible blocks). Forces a fresh commit/redeploy.
+# Build marker 2026-06-15e — adds public Google Slides link import. Forces a fresh commit/redeploy.
 """
 PPT -> ArcGIS StoryMaps Briefing converter (backend) — stateless build for Render.
 
@@ -40,9 +40,15 @@ import time
 import base64
 import hashlib
 import secrets
+import shutil
 import tempfile
 import threading
 import traceback
+import subprocess
+import re
+import urllib.parse
+
+import requests
 
 from cryptography.fernet import Fernet, InvalidToken
 from flask import (
@@ -216,8 +222,12 @@ def logout():
 # ---------------------------------------------------------------------------
 
 def parse_pptx(file_bytes, workdir):
-    """Extract per-slide title, body text, speaker notes, and images."""
+    """Extract per-slide title, body text, speaker notes, images, and SmartArt."""
     from pptx import Presentation
+    from pptx.oxml.ns import qn
+
+    # SmartArt (a "diagram") lives in a graphicFrame whose graphicData uri is this.
+    DIAGRAM_URI = "http://schemas.openxmlformats.org/drawingml/2006/diagram"
 
     prs = Presentation(io.BytesIO(file_bytes))
     slides = []
@@ -226,6 +236,7 @@ def parse_pptx(file_bytes, workdir):
         title = ""
         body = []
         images = []
+        smartart = []
 
         try:
             if slide.shapes.title is not None and slide.shapes.title.has_text_frame:
@@ -255,6 +266,19 @@ def parse_pptx(file_bytes, workdir):
                 except Exception:
                     continue
 
+            # SmartArt: a graphicFrame referencing the diagram namespace. We can't
+            # read its content in Python, so we record its bounding box to render
+            # later (see render_smartart_stream).
+            try:
+                gd = shape._element.find(".//" + qn("a:graphicData"))
+                if gd is not None and DIAGRAM_URI in (gd.get("uri") or ""):
+                    smartart.append({
+                        "left": int(shape.left), "top": int(shape.top),
+                        "width": int(shape.width), "height": int(shape.height),
+                    })
+            except Exception:
+                pass
+
         notes = ""
         try:
             if slide.has_notes_slide:
@@ -271,6 +295,7 @@ def parse_pptx(file_bytes, workdir):
             "body": body,
             "notes": notes,
             "images": images,
+            "smartart": smartart,
         })
 
     return slides
@@ -282,6 +307,91 @@ def parse_pptx(file_bytes, workdir):
 
 def _log(message, level="info"):
     return {"type": "log", "level": level, "message": message}
+
+
+# --- SmartArt rendering ----------------------------------------------------
+# SmartArt can't be read as text/vector in Python, so we render it to an image
+# with LibreOffice (pptx -> PDF) and crop the SmartArt's bounding box with
+# PyMuPDF. This requires LibreOffice + pymupdf in the environment (the Docker
+# build). When they're absent (e.g. the lean Render Starter native build), we
+# skip SmartArt gracefully so everything else still works.
+
+_EMU_PER_POINT = 12700
+_SMARTART_DPI = 200
+
+
+def _renderer_exe():
+    """Return the LibreOffice executable if SmartArt rendering is possible, else None."""
+    exe = shutil.which("soffice") or shutil.which("libreoffice")
+    if not exe:
+        return None
+    try:
+        import fitz  # noqa: F401  (PyMuPDF)
+    except Exception:
+        return None
+    return exe
+
+
+def render_smartart_stream(file_bytes, slides, workdir):
+    """Render each SmartArt graphic to a PNG and append it to that slide's images.
+    Generator: yields log events and mutates `slides` in place."""
+    total = sum(len(s.get("smartart") or []) for s in slides)
+    if total == 0:
+        return
+
+    exe = _renderer_exe()
+    if not exe:
+        yield _log(f"Found {total} SmartArt graphic(s), but this server can't render them "
+                   f"(needs the LibreOffice-enabled build — see DEPLOY.md). Skipping.", "warn")
+        return
+
+    import fitz
+    yield _log(f"Rendering {total} SmartArt graphic(s)…")
+
+    pptx_path = os.path.join(workdir, "deck.pptx")
+    with open(pptx_path, "wb") as fh:
+        fh.write(file_bytes)
+
+    # LibreOffice needs a writable HOME for its profile.
+    env = dict(os.environ, HOME=workdir)
+    try:
+        subprocess.run([exe, "--headless", "--convert-to", "pdf", "--outdir", workdir, pptx_path],
+                       env=env, capture_output=True, timeout=180, check=True)
+    except Exception as e:
+        yield _log(f"SmartArt rendering failed during PDF conversion ({type(e).__name__}); "
+                   f"continuing without it.", "warn")
+        return
+
+    pdf_path = os.path.join(workdir, "deck.pdf")
+    if not os.path.exists(pdf_path):
+        yield _log("SmartArt rendering produced no PDF; continuing without it.", "warn")
+        return
+
+    zoom = fitz.Matrix(_SMARTART_DPI / 72.0, _SMARTART_DPI / 72.0)
+    try:
+        doc = fitz.open(pdf_path)
+        for s in slides:
+            sa = s.get("smartart") or []
+            idx = s["index"]
+            if not sa or idx >= doc.page_count:
+                continue
+            page = doc[idx]
+            for j, bb in enumerate(sa):
+                try:
+                    clip = fitz.Rect(
+                        bb["left"] / _EMU_PER_POINT, bb["top"] / _EMU_PER_POINT,
+                        (bb["left"] + bb["width"]) / _EMU_PER_POINT,
+                        (bb["top"] + bb["height"]) / _EMU_PER_POINT,
+                    )
+                    out = os.path.join(workdir, f"smartart_{idx + 1}_{j}_{secrets.token_hex(3)}.png")
+                    page.get_pixmap(clip=clip, matrix=zoom).save(out)
+                    s["images"].append({"path": out, "ext": "png"})
+                    yield _log(f"  • rendered SmartArt on slide {idx + 1}")
+                except Exception as e:
+                    yield _log(f"  • SmartArt on slide {idx + 1} skipped ({type(e).__name__})", "warn")
+        doc.close()
+    except Exception as e:
+        yield _log(f"SmartArt rendering error ({type(e).__name__}); continuing.", "warn")
 
 
 # Flexible briefing slides accept 1–6 content blocks. We reserve block 0 for the
@@ -376,6 +486,7 @@ def convert_stream(bundle, file_bytes, briefing_title):
             yield _log("Another conversion is in progress; waiting for it to finish…", "warn")
             _build_gate.acquire()
         try:
+            yield from render_smartart_stream(file_bytes, slides, workdir)
             yield _log("Signing in to ArcGIS…")
             gis = get_gis(bundle)
             yield from build_briefing_stream(gis, slides, briefing_title)
@@ -399,20 +510,66 @@ def convert_stream(bundle, file_bytes, briefing_title):
             pass
 
 
+def fetch_google_slides_pptx(url):
+    """Download a PUBLIC Google Slides deck as .pptx bytes.
+
+    Only docs.google.com links are accepted, and the export URL is built here
+    (not taken from the user), which contains SSRF. Raises ValueError with a
+    user-facing message on any problem.
+    """
+    parsed = urllib.parse.urlparse(url.strip())
+    if parsed.scheme not in ("http", "https") or parsed.netloc not in (
+        "docs.google.com", "www.docs.google.com"
+    ):
+        raise ValueError("Enter a Google Slides link from docs.google.com.")
+
+    m = re.search(r"/presentation/d/(e/)?([a-zA-Z0-9_-]+)", parsed.path)
+    if not m:
+        raise ValueError("That doesn't look like a Google Slides link.")
+    published, file_id = bool(m.group(1)), m.group(2)
+    base = f"https://docs.google.com/presentation/d/{'e/' if published else ''}{file_id}"
+    export_url = f"{base}/export/pptx"
+
+    try:
+        r = requests.get(export_url, timeout=60, allow_redirects=True)
+    except Exception as e:
+        raise ValueError(f"Could not reach Google Slides ({type(e).__name__}). Try again.")
+
+    data = r.content or b""
+    # A real .pptx is a ZIP (starts with 'PK\x03\x04'). Anything else (e.g. a
+    # sign-in/permission HTML page) means the deck isn't publicly viewable.
+    if r.status_code != 200 or data[:4] != b"PK\x03\x04":
+        raise ValueError(
+            "Couldn't download that deck. In Google Slides choose Share → General "
+            "access → 'Anyone with the link' (Viewer), then paste the link again."
+        )
+    if len(data) > 100 * 1024 * 1024:
+        raise ValueError("That deck is too large to convert.")
+    return data
+
+
 @app.route("/api/convert", methods=["POST"])
 def convert():
     bundle = read_auth()
     if not bundle:
         return jsonify(ok=False, error="Your session has expired. Please sign in again."), 401
 
-    if "file" not in request.files:
-        return jsonify(ok=False, error="No file was uploaded."), 400
-    upload = request.files["file"]
-    if not (upload.filename or "").lower().endswith(".pptx"):
-        return jsonify(ok=False, error="Please upload a .pptx file. The older binary .ppt "
-                                       "format isn't supported — Save As .pptx first."), 400
+    upload = request.files.get("file")
+    gslides_url = (request.form.get("gslides_url") or "").strip()
 
-    file_bytes = upload.read()
+    if upload and upload.filename:
+        if not upload.filename.lower().endswith(".pptx"):
+            return jsonify(ok=False, error="Please upload a .pptx file. The older binary .ppt "
+                                           "format isn't supported — Save As .pptx first."), 400
+        file_bytes = upload.read()
+    elif gslides_url:
+        try:
+            file_bytes = fetch_google_slides_pptx(gslides_url)
+        except ValueError as e:
+            return jsonify(ok=False, error=str(e)), 400
+    else:
+        return jsonify(ok=False, error="Upload a .pptx file or paste a Google Slides link."), 400
+
     briefing_title = (request.form.get("title") or "").strip()
 
     @stream_with_context

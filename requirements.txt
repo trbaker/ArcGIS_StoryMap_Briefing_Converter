@@ -1,11 +1,13 @@
-# Build marker 2026-06-15b — full ArcGIS install (ends the minimal-deps missing-module loop). Forces a fresh commit/redeploy.
+# Build marker 2026-06-15e — adds public Google Slides link import. Forces a fresh commit/redeploy.
 Flask>=3.0,<4.0
 gunicorn>=21.2
 cryptography>=42.0
 python-pptx>=0.6.23
+requests>=2.31
 
-# FULL ArcGIS install. We previously used a --no-deps "minimal" install to save
-# memory, but it kept surfacing undocumented missing modules (truststore,
-# cachetools, puremagic, ...). The full install pulls everything correctly and
-# still fits Render Starter's 512 MB for sign-in and typical decks.
+# SmartArt rendering: crops LibreOffice-rendered slide pages. LibreOffice itself
+# is a SYSTEM package (see Dockerfile), not pip. If absent, SmartArt is skipped.
+pymupdf>=1.24
+
+# Full ArcGIS install (pulls numpy/pandas etc. automatically).
 arcgis>=2.3,<2.5

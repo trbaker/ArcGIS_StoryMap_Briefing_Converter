@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- Build marker 2026-06-15e — adds public Google Slides link import. Forces a fresh commit/redeploy. -->
 <head>
 <!-- Build marker 2026-06-15a — forces a fresh commit so GitHub overwrites the old file and Render redeploys (no functional effect). -->
 <meta charset="utf-8" />
@@ -107,6 +107,9 @@
   .filechip{font-family:var(--mono); font-size:13px; color:var(--signal); flex:1; overflow:hidden;
     text-overflow:ellipsis; white-space:nowrap}
   .filemeta{font-size:11.5px; color:var(--muted); margin-top:2px}
+  .or-divider{display:flex; align-items:center; gap:12px; margin:16px 0;
+    color:var(--faint); font-size:12px; font-family:var(--mono)}
+  .or-divider::before,.or-divider::after{content:""; flex:1; height:1px; background:var(--line)}
 
   /* Console / transmission log — the signature element */
   .console-wrap{margin-top:18px; display:none}
@@ -196,7 +199,7 @@
   <section class="card" id="card-source" aria-disabled="true">
     <div class="step">02 — Source</div>
     <h2>Add your presentation</h2>
-    <p class="hint">One <code style="font-family:var(--mono)">.pptx</code> file. Each slide becomes one briefing slide; embedded images upload to your content.</p>
+    <p class="hint">Upload one <code style="font-family:var(--mono)">.pptx</code> file, or paste a public Google Slides link. Each slide becomes one briefing slide; images upload to your content.</p>
 
     <div class="field">
       <label for="title">Briefing title <span style="color:var(--faint)">(optional)</span></label>
@@ -208,6 +211,15 @@
       <div class="sub">Saved as .pptx from PowerPoint, Keynote, or Google Slides</div>
     </div>
     <input type="file" id="file" accept=".pptx" hidden>
+
+    <div class="or-divider"><span>or</span></div>
+
+    <div class="field" style="margin-bottom:0">
+      <label for="gslides">Paste a public Google Slides link</label>
+      <input type="text" id="gslides" autocomplete="off" spellcheck="false"
+             placeholder="https://docs.google.com/presentation/d/…">
+      <div class="sub" style="margin-top:6px; color:var(--faint)">The deck must be shared “Anyone with the link”.</div>
+    </div>
   </section>
 
   <!-- STEP 3 — Build -->
@@ -341,24 +353,32 @@ drop.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){ e.prev
 drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if(f) setFile(f); });
 fileInput.addEventListener('change', e => { const f = e.target.files[0]; if(f) setFile(f); });
 
+function refreshRunEnabled(){
+  $('#run').disabled = !(selectedFile || $('#gslides').value.trim());
+}
+
 function setFile(f){
   if(!f.name.toLowerCase().endsWith('.pptx')){
     drop.classList.remove('has-file');
     drop.innerHTML = '<div class="big" style="color:var(--error)">Not a .pptx file</div>'
       + '<div class="sub">Save your presentation as .pptx and try again.</div>';
-    selectedFile = null; $('#run').disabled = true; return;
+    selectedFile = null; refreshRunEnabled(); return;
   }
   selectedFile = f;
   const kb = (f.size/1024).toFixed(0);
   drop.classList.add('has-file');
   drop.innerHTML = '<div class="mark" style="width:30px;height:30px"><span style="font-size:13px">▣</span></div>'
     + `<div><div class="filechip">${f.name}</div><div class="filemeta">${kb} KB · ready</div></div>`;
-  $('#run').disabled = false;
+  $('#gslides').value = '';           // a file takes precedence over a link
+  refreshRunEnabled();
 }
+
+$('#gslides').addEventListener('input', refreshRunEnabled);
 
 // --- Build ---
 $('#run').addEventListener('click', async () => {
-  if(!selectedFile) return;
+  const gslides = $('#gslides').value.trim();
+  if(!selectedFile && !gslides) return;
   const run = $('#run'); run.disabled = true; run.textContent = 'Building…';
   $('#result').classList.remove('show');
   const con = $('#console'); con.innerHTML = '';
@@ -366,7 +386,8 @@ $('#run').addEventListener('click', async () => {
   setDot('live'); $('#console-title').textContent = 'transmission log — active';
 
   const fd = new FormData();
-  fd.append('file', selectedFile);
+  if(selectedFile){ fd.append('file', selectedFile); }
+  else { fd.append('gslides_url', gslides); }
   fd.append('title', $('#title').value.trim());
 
   const done = () => { run.disabled = false; run.textContent = 'Build briefing'; };

@@ -65,7 +65,43 @@ to open the new briefing when it's done.
 - No usage-based surprises: the single Starter instance can't autoscale into a
   larger bill on its own.
 
-## Dependencies: full install (and the lean alternative)
+## Google Slides links
+
+Instead of uploading a `.pptx`, a user can paste a **public Google Slides link**.
+The app exports the deck from Google as `.pptx` (no Google account or API key
+needed) and runs it through the same pipeline. The deck must be shared
+**Anyone with the link → Viewer**; a private deck is rejected with a clear
+message. Only `docs.google.com` links are accepted, and the export URL is built
+server-side (not taken from the user) to avoid SSRF.
+
+## SmartArt support (optional — needs the Docker build)
+
+PowerPoint SmartArt can't be read as text or vector in Python, so the app
+*renders* it: it converts the deck to PDF with **LibreOffice**, crops each
+SmartArt graphic's bounding box with **PyMuPDF**, and adds the result as an image
+on that briefing slide.
+
+Because LibreOffice is a system package (not pip) and is memory-hungry, SmartArt
+rendering only runs in the **Docker build on a 2 GB+ instance**:
+
+- **On the lean native Render Starter setup (current default):** SmartArt is
+  detected and **skipped** with a log line — everything else still works. No
+  action needed; non-SmartArt decks are unaffected.
+- **To enable SmartArt:** deploy the included `Dockerfile` (it installs
+  `libreoffice-impress`) on a 2 GB instance:
+  - **Render:** in the service Settings, set Runtime/Language to **Docker** and
+    the plan to **Standard** (2 GB), or change `render.yaml` to
+    `runtime: docker` and `plan: standard`. (Standard is $25/mo — above the lean
+    budget, but it's the cost of bundling a renderer.)
+  - **VPS:** `docker build` the image and run it on a box with ≥2 GB RAM (e.g. a
+    Hetzner CX22, ~€4/mo with 4 GB) — cheaper than Standard, more hands-on.
+
+Notes: each SmartArt becomes one image block, and (like regular images) a slide
+shows at most a handful before hitting the flexible-layout 6-block limit. The
+render captures SmartArt as a flat picture — it won't be editable in the briefing
+builder afterward.
+
+
 
 The build uses the full `arcgis` install (`pip install -r requirements.txt`),
 which pulls `arcgis` plus all its dependencies, including the scientific stack
