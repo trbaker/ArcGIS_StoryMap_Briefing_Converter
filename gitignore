@@ -1,0 +1,7 @@
+# Build marker 2026-06-15a — forces a fresh commit so GitHub overwrites the old file and Render redeploys (no functional effect).
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+*.log

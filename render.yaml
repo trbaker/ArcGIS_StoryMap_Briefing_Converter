@@ -1,0 +1,28 @@
+# Build marker 2026-06-15a — forces a fresh commit so GitHub overwrites the old file and Render redeploys (no functional effect).
+# Render Blueprint. In Render: New > Blueprint, point it at this repo, and it
+# provisions the service below. Fill the secret env vars when prompted.
+services:
+  - type: web
+    name: ppt2briefing
+    runtime: python
+    plan: starter            # 512 MB RAM / 0.5 CPU, $7/mo flat
+    region: oregon           # pick the region closest to you
+    buildCommand: pip install -r requirements.txt && pip install --no-deps "arcgis>=2.3,<2.5"
+    # One worker + a few threads keeps a single arcgis copy resident (memory).
+    # --timeout 0 lets a long build stream without the worker being killed.
+    # --max-requests recycles the worker periodically to reclaim memory.
+    startCommand: >
+      gunicorn app:app --bind 0.0.0.0:$PORT
+      --workers 1 --threads 4 --timeout 0
+      --max-requests 50 --max-requests-jitter 10
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: APP_SECRET_KEY      # generated once and kept stable across deploys
+        generateValue: true      # (keep stable: it encrypts the session cookie)
+      - key: ARCGIS_PORTAL
+        value: https://www.arcgis.com
+      - key: SESSION_HOURS       # how long a sign-in stays valid (optional)
+        value: "4"
