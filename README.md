@@ -18,7 +18,7 @@ allow the Briefing to be Duplicated during the Share process (untested).  Never 
 ## After uploading your PPT
 1. Powerpoint themes won't transfer - neither will background colors, font styles or font colors.  After uploading apply a StoryMap theme to your newly created Briefing.
 2. Smart Art from Powerpoint is not currently supported. You will need to manually recreate the content. I personally, take screen shots from within PowerPoint and upload to my Briefing.
-   3. While images transfer, they won't hold any special formatting you may have applied in PowerPoint. Take a look at each image.
+3. While images transfer, they won't hold any special formatting you may have applied in PowerPoint. Take a look at each image.
   
 After your Briefing is created, expect to review it carefully and make changes to finalize it.  This tool should reduce your work in converting PowerPoint to Briefings but it will not eliminate it.
 
