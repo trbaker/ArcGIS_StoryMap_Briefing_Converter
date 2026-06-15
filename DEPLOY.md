@@ -36,11 +36,10 @@ static/index.html
    `render.yaml` and proposes the `ppt2briefing` web service on the **Starter**
    plan. Approve it. There are no secrets to fill in — `APP_SECRET_KEY` is
    generated for you, and `ARCGIS_PORTAL`/`SESSION_HOURS` are preset.
-2. Let it build and deploy. The build installs `arcgis` with a **minimal
-   dependency set** (no numpy/pandas — see "Minimal install" below), so it's much
-   lighter than a default `pip install arcgis`. When it's done you'll get a URL
-   like `https://ppt2briefing.onrender.com`. **Treat your first real conversion as
-   a validation run** (see "Minimal install").
+2. Let it build and deploy. The build runs `pip install -r requirements.txt`,
+   which installs `arcgis` and all its dependencies. The first build pulls the
+   full scientific stack (numpy/pandas/etc.), so give it a few minutes. When it's
+   done you'll get a URL like `https://ppt2briefing.onrender.com`.
 
 > Keep `APP_SECRET_KEY` stable. It encrypts the session cookie that holds your
 > credentials; if you rotate it, everyone is signed out (which is a fine way to
@@ -66,36 +65,27 @@ to open the new briefing when it's done.
 - No usage-based surprises: the single Starter instance can't autoscale into a
   larger bill on its own.
 
-## Minimal install (why the footprint is small, and the one thing to check)
+## Dependencies: full install (and the lean alternative)
 
-`arcgis` by default drags in a heavy scientific stack (numpy, pandas, scipy,
-shapely, pyproj) that this app never uses — it only signs in and creates a
-briefing. So the build installs `arcgis` with `--no-deps` plus Esri's documented
-*minimum* dependency set (the lightweight `requests-*` helpers). That's the
-difference between a multi-hundred-MB environment and a lean one that fits
-512 MB comfortably, in both disk and RAM.
+The build uses the full `arcgis` install (`pip install -r requirements.txt`),
+which pulls `arcgis` plus all its dependencies, including the scientific stack
+(numpy, pandas, etc.). This app doesn't use that stack directly, but installing
+it in full is the reliable path: it resolves every dependency `arcgis` needs in
+one step.
 
-The one caveat: Esri documents the minimal set as sufficient for connecting and
-**content-management** tasks (which is what creating a briefing is), but the
-StoryMaps/Briefings module is higher-level, so there's a small chance it reaches
-for a trimmed dependency. If that happens, the conversion console shows a clear
-message like:
+We originally tried a "minimal" install (`pip install --no-deps arcgis` plus a
+hand-picked dependency list) to save memory. In practice it kept surfacing
+*undocumented* missing modules one at a time — `truststore`, `cachetools`,
+`puremagic`, and others — because Esri's published minimal list is incomplete
+for the StoryMaps/Briefings path. The full install avoids that entirely.
 
-> Missing Python dependency 'X'. The minimal ArcGIS install doesn't include it.
-> Add 'X' to requirements.txt and redeploy.
-
-The fix is exactly that: add the named package to `requirements.txt`, commit,
-and Render redeploys. That's why the **first real conversion is your validation
-run**. (If you'd rather not iterate, the fallback below switches to the full
-install in one line.)
-
-### Fallback: the full install
-
-If you hit missing-dependency messages and don't want to chase them, revert to
-the complete dependency tree: in `requirements.txt` replace the minimal block
-with a single `arcgis>=2.3,<2.5` line, and in `render.yaml` change the build
-command back to just `pip install -r requirements.txt`. It's heavier on the
-512 MB instance but needs nothing else.
+**Lean alternative (optional, more upkeep):** if you want the smaller footprint
+back, change the build to `pip install --no-deps "arcgis>=2.3,<2.5"` after the
+normal install, and add the lightweight deps `arcgis` needs — start with
+`truststore cachetools puremagic ujson six requests-toolbelt requests-oauthlib`
+and add any further module the app names in its error message. The app reports
+missing modules clearly (e.g. "Missing Python dependency 'X'… add 'X' to
+requirements.txt"), so you can chase them down — but expect a few redeploys.
 
 ## The 512 MB caveat (read this)
 
@@ -122,7 +112,6 @@ The code is host-agnostic, so you don't rewrite anything:
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pip install --no-deps "arcgis>=2.3,<2.5"
 export APP_SECRET_KEY=$(python -c 'import secrets;print(secrets.token_hex(32))')
 python app.py     # http://localhost:5000
 ```
