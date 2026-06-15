@@ -9,11 +9,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#0d141c; --panel:#131d28; --panel-2:#0f1822;
-    --line:#243240; --line-soft:#1b2733;
-    --text:#d6e0ea; --muted:#7d8b9a; --faint:#566372;
-    --signal:#4fd1c5; --signal-dim:#2c6f69;
-    --warn:#e6b450; --error:#e06c75; --ok:#7bd88f;
+    --ink:#eef2f7; --panel:#ffffff; --panel-2:#f4f7fa;
+    --line:#d6dde6; --line-soft:#e4e9f0;
+    --text:#16202b; --muted:#5a6776; --faint:#8b97a4;
+    --signal:#0c857a; --signal-dim:#5cbdb1;
+    --warn:#b45309; --error:#dc2626; --ok:#15803d;
     --display:'Space Grotesk',system-ui,sans-serif;
     --body:'Inter',system-ui,sans-serif;
     --mono:'JetBrains Mono',ui-monospace,monospace;
@@ -22,7 +22,7 @@
   html,body{margin:0}
   body{
     background:
-      radial-gradient(900px 500px at 80% -10%, #16222f 0%, transparent 60%),
+      radial-gradient(900px 500px at 80% -10%, #ffffff 0%, transparent 65%),
       var(--ink);
     color:var(--text); font-family:var(--body); line-height:1.55;
     min-height:100vh; -webkit-font-smoothing:antialiased;
@@ -88,9 +88,9 @@
     font-size:14px; letter-spacing:.2px; padding:11px 18px; border-radius:8px;
     display:inline-flex; align-items:center; gap:9px; transition:transform .08s, background .15s}
   .btn:active{transform:translateY(1px)}
-  .btn.primary{background:var(--signal); color:#04201d}
-  .btn.primary:hover{background:#63ded3}
-  .btn.primary:disabled{background:var(--signal-dim); color:#0b2b28; cursor:default; opacity:.7}
+  .btn.primary{background:var(--signal); color:#ffffff}
+  .btn.primary:hover{background:#0a6f66}
+  .btn.primary:disabled{background:var(--line-soft); color:var(--faint); cursor:default; opacity:.9}
   .btn.ghost{background:transparent; color:var(--text); border:1px solid var(--line)}
   .btn.ghost:hover{border-color:var(--faint)}
 
@@ -98,7 +98,7 @@
   .drop{
     border:1.5px dashed var(--line); border-radius:10px; padding:26px 18px; text-align:center;
     cursor:pointer; transition:border-color .15s, background .15s; background:var(--panel-2)}
-  .drop:hover,.drop.over{border-color:var(--signal-dim); background:#10202b}
+  .drop:hover,.drop.over{border-color:var(--signal-dim); background:#eef3f8}
   .drop .big{font-family:var(--display); font-size:14.5px; color:var(--text)}
   .drop .sub{font-size:12px; color:var(--muted); margin-top:5px}
   .drop.has-file{border-style:solid; border-color:var(--signal-dim); text-align:left;
@@ -119,17 +119,17 @@
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
   .dot.live{animation:pulse 1.1s ease-in-out infinite}
   .console{
-    background:#0a1119; border:1px solid var(--line); border-radius:0 0 9px 9px;
+    background:#f1f4f8; border:1px solid var(--line); border-radius:0 0 9px 9px;
     font-family:var(--mono); font-size:12.5px; line-height:1.7; color:var(--text);
     padding:13px 15px; max-height:300px; overflow:auto}
   .console .ln{display:flex; gap:11px; white-space:pre-wrap; word-break:break-word}
-  .console .ln .tick{color:var(--signal-dim); flex:none}
+  .console .ln .tick{color:var(--faint); flex:none}
   .console .ln.warn .msg{color:var(--warn)}
   .console .ln.error .msg{color:var(--error)}
   .console .ln.sys .msg{color:var(--muted)}
 
   .result{margin-top:16px; border:1px solid var(--signal-dim); border-radius:10px;
-    padding:16px 18px; background:rgba(79,209,197,.06); display:none}
+    padding:16px 18px; background:#eafaf6; display:none}
   .result.show{display:block}
   .result h3{font-family:var(--display); font-size:15px; margin:0 0 4px; color:var(--ok)}
   .result p{margin:0 0 12px; font-size:13px; color:var(--muted)}
@@ -137,9 +137,7 @@
 
   .banner{display:none; border-radius:8px; padding:10px 13px; font-size:12.5px; margin-bottom:14px}
   .banner.show{display:block}
-  .banner.err{background:rgba(224,108,117,.1); border:1px solid rgba(224,108,117,.4); color:#f1b0b6}
-  .portal-line{font-family:var(--mono); font-size:11.5px; color:var(--faint); margin-top:11px}
-  .portal-line b{color:var(--muted); font-weight:500}
+  .banner.err{background:#fdecec; border:1px solid #f3c0c0; color:#b42318}
 
   footer{margin-top:34px; font-size:11.5px; color:var(--faint); line-height:1.7}
   footer code{font-family:var(--mono); color:var(--muted)}
@@ -170,16 +168,27 @@
   <!-- STEP 1 — Sign in -->
   <section class="card" id="card-auth">
     <div class="step">01 — Sign in</div>
-    <h2>Sign in with ArcGIS</h2>
-    <p class="hint">You'll sign in on Esri's own page. This app never sees your password — it receives a token scoped to your account, and can sign you out anytime.</p>
+    <h2>Sign in to ArcGIS Online</h2>
+    <p class="hint">Enter your ArcGIS username and password. Your password is sent only to authenticate and is kept encrypted for the session — never in plain text. Accounts that use SSO or multi-factor sign-in can't use username/password.</p>
 
     <div class="banner err" id="auth-error"></div>
-    <div class="banner err" id="config-error"></div>
 
-    <button class="btn primary" id="signin">
-      <span aria-hidden="true">↪</span> Sign in with ArcGIS
-    </button>
-    <div class="portal-line" id="portal-line"></div>
+    <div class="field">
+      <label for="portal">Portal URL</label>
+      <input type="text" id="portal" value="https://www.arcgis.com" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="username">Username</label>
+        <input type="text" id="username" autocomplete="username" spellcheck="false" placeholder="your_account">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+    </div>
+
+    <button class="btn primary" id="connect">Sign in</button>
   </section>
 
   <!-- STEP 2 — Source -->
@@ -227,7 +236,7 @@
   </section>
 
   <footer>
-    Builds use Esri's supported <code>arcgis.apps.storymap.Briefing</code> API — the only sanctioned way to create briefings programmatically. Sign-in uses ArcGIS <b>OAuth 2.0</b>; no password ever reaches this app. The older binary <code>.ppt</code> format isn't supported — save as <code>.pptx</code> first.
+    Builds use Esri's supported <code>arcgis.apps.storymap.Briefing</code> API — the only sanctioned way to create briefings programmatically. Sign-in uses your ArcGIS username and password (kept encrypted for the session, never in plain text); SSO/MFA accounts aren't supported. The older binary <code>.ppt</code> format isn't supported — save as <code>.pptx</code> first.
   </footer>
 </div>
 
@@ -272,46 +281,49 @@ function onSignedOut(){
   $('#card-auth').style.display='';
   enableCard('#card-auth');
   disableCard('#card-source'); disableCard('#card-build');
+  $('#password').value='';
 }
 
-// Surface an OAuth error passed back via ?auth_error= on the callback redirect.
-(() => {
-  const p = new URLSearchParams(location.search);
-  const e = p.get('auth_error');
-  if(e){
-    showError($('#auth-error'), e);
-    history.replaceState({}, '', location.pathname);  // clean the URL
-  }
-})();
-
-// Probe OAuth config; if the server has no client id/secret, guide the operator.
+// Prefill the portal field from server config.
 (async () => {
   try{
-    const r = await fetch('/api/config');
-    const c = await r.json();
-    if(c.portal){
-      $('#portal-line').innerHTML = 'portal · <b>' + c.portal.replace(/^https?:\/\//,'') + '</b>';
-    }
-    if(!c.configured){
-      $('#signin').disabled = true;
-      showError($('#config-error'),
-        'OAuth isn’t configured on the server. Set ARCGIS_CLIENT_ID and ARCGIS_CLIENT_SECRET, '
-        + 'and register ' + (c.redirect_uri || 'the redirect URI') + ' on your ArcGIS app. See the README.');
-    }
+    const c = await (await fetch('/api/config')).json();
+    if(c.portal){ $('#portal').value = c.portal; }
   }catch(e){}
 })();
 
-// Restore an existing session on load (e.g. after returning from OAuth).
+// Restore an existing session on load.
 (async () => {
   try{
-    const r = await fetch('/api/session');
-    const d = await r.json();
+    const d = await (await fetch('/api/session')).json();
     if(d.signed_in){ onSignedIn(d.username, d.expires_at); }
   }catch(e){}
 })();
 
-// --- Sign in (redirect to ArcGIS) ---
-$('#signin').addEventListener('click', () => { window.location = '/api/login'; });
+// --- Sign in (username / password) ---
+$('#connect').addEventListener('click', async () => {
+  clearError($('#auth-error'));
+  const btn = $('#connect'); btn.disabled = true; btn.textContent = 'Signing in…';
+  try{
+    const r = await fetch('/api/auth', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        portal_url: $('#portal').value.trim(),
+        username: $('#username').value.trim(),
+        password: $('#password').value
+      })
+    });
+    const d = await r.json();
+    if(!d.ok){ showError($('#auth-error'), d.error || 'Sign-in failed.'); return; }
+    $('#password').value='';
+    onSignedIn(d.user, d.expires_at);
+  }catch(e){
+    showError($('#auth-error'), 'Could not reach the server.');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+});
+$('#password').addEventListener('keydown', e => { if(e.key==='Enter') $('#connect').click(); });
 
 $('#signout').addEventListener('click', async () => {
   try{ await fetch('/api/logout', {method:'POST'}); }catch(e){}
