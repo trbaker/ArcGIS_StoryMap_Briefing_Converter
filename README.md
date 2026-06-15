@@ -1,6 +1,7 @@
 ## Powerpoint to ArcGIS StoryMap Briefings converter
 
 URL: https://arcgis-storymap-briefing-converter.onrender.com 
+Note: The app above runs on a free account at render.com - if the app hasn't been used in 15 minutes, it goes to sleep.  So you may see a message saying something equivalent to "wait a few minutes while we wake up your app".
 
 ### What does the app do?
 This free, web-based tool transforms your PowerPoint slides into an ArcGIS Online StoryMap Briefing. This tool does not create an exact duplicate of your PowerPoint slides
