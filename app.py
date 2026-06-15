@@ -1,4 +1,4 @@
-# Build marker 2026-06-15a — forces a fresh commit so GitHub overwrites the old file and Render redeploys (no functional effect).
+# Build marker 2026-06-15c — fixes briefing slide creation (Briefing.add(slide=...) + flexible blocks). Forces a fresh commit/redeploy.
 """
 PPT -> ArcGIS StoryMaps Briefing converter (backend) — stateless build for Render.
 
@@ -280,120 +280,72 @@ def parse_pptx(file_bytes, workdir):
 # Briefing construction (version-sensitive: the data model is undocumented)
 # ---------------------------------------------------------------------------
 
-def _resolve_storymap_imports():
-    from arcgis.apps.storymap import Briefing
-    from arcgis.apps.storymap import story_content as sc
-    return {
-        "Briefing": Briefing,
-        "Text": getattr(sc, "Text"),
-        "Image": getattr(sc, "Image"),
-        "TextStyles": getattr(sc, "TextStyles", None),
-        "BriefingSlide": getattr(sc, "BriefingSlide", None),
-        "SlideLayout": getattr(sc, "SlideLayout", None),
-    }
-
-
-def _add_slide(briefing, api):
-    BriefingSlide = api["BriefingSlide"]
-    SlideLayout = api["SlideLayout"]
-    layout = None
-    if SlideLayout is not None:
-        for name in ("SINGLE", "FULL", "TITLE_ONLY", "FULLSCREEN"):
-            if hasattr(SlideLayout, name):
-                layout = getattr(SlideLayout, name)
-                break
-    if hasattr(briefing, "add_slide"):
-        try:
-            return briefing.add_slide(slide_layout=layout) if layout is not None else briefing.add_slide()
-        except TypeError:
-            try:
-                return briefing.add_slide(layout) if layout is not None else briefing.add_slide()
-            except Exception:
-                pass
-    if BriefingSlide is not None and hasattr(briefing, "add"):
-        slide = BriefingSlide(slide_layout=layout) if layout is not None else BriefingSlide()
-        briefing.add(slide)
-        return slide
-    raise RuntimeError("No recognized slide-creation method on Briefing for this arcgis version.")
-
-
-def _slide_add_content(slide, content):
-    for attr in ("add_content", "add"):
-        if hasattr(slide, attr):
-            getattr(slide, attr)(content)
-            return
-    blocks = getattr(slide, "blocks", None)
-    if blocks:
-        for block in blocks:
-            if hasattr(block, "add_content"):
-                block.add_content(content)
-                return
-    raise RuntimeError("Could not add content to this slide object.")
-
-
 def _log(message, level="info"):
     return {"type": "log", "level": level, "message": message}
 
 
+# Flexible briefing slides accept 1–6 content blocks. We reserve block 0 for the
+# slide's text and give each image its own block (a block holds only one image).
+_MAX_IMAGE_BLOCKS = 5
+
+
 def build_briefing_stream(gis, slides, briefing_title):
-    """Generator: yields progress events while building the briefing."""
-    api = _resolve_storymap_imports()
-    Briefing, Text, Image = api["Briefing"], api["Text"], api["Image"]
-    TextStyles = api["TextStyles"]
+    """Generator: yields progress events while building the briefing.
+
+    Briefing slide API (arcgis 2.4/2.5): create a flexible BriefingSlide with a
+    given number of blocks, attach it with Briefing.add(slide=...), then fill
+    each block via block.add_content(...). A block can hold multiple Text
+    contents but only one Image, so each image gets its own block.
+    """
+    from arcgis.apps.storymap import Briefing
+    from arcgis.apps.storymap import story_content as sc
+    Text, Image, BriefingSlide = sc.Text, sc.Image, sc.BriefingSlide
 
     yield _log("Creating a new briefing draft in your ArcGIS Online content…")
     briefing = Briefing(gis=gis)
 
     cover_title = briefing_title or (slides[0]["title"] if slides else "Imported Briefing")
-    cover_sub = slides[0]["body"][0][:200] if (slides and slides[0]["body"]) else ""
-    try:
-        if hasattr(briefing, "cover"):
-            briefing.cover(title=cover_title, summary=cover_sub)
-            yield _log(f"Set cover slide: “{cover_title}”.")
-    except Exception as e:
-        yield _log(f"Could not set cover; continuing. ({type(e).__name__})", "warn")
 
     for ps in slides:
         yield _log(f"Building slide {ps['index'] + 1}: “{ps['title']}”")
-        slide = _add_slide(briefing, api)
 
-        try:
-            if TextStyles is not None and hasattr(TextStyles, "HEADING"):
-                _slide_add_content(slide, Text(text=ps["title"], style=TextStyles.HEADING))
-            else:
-                _slide_add_content(slide, Text(text=ps["title"]))
-        except Exception as e:
-            yield _log(f"  • title text skipped ({type(e).__name__})", "warn")
+        images = ps["images"][:_MAX_IMAGE_BLOCKS]
+        num_blocks = 1 + len(images)          # block 0 = text; one block per image
 
-        for para in ps["body"]:
+        slide = BriefingSlide(
+            layout="flexible", num_blocks=num_blocks,
+            title=ps["title"], story=briefing,
+        )
+        slide = briefing.add(slide=slide)     # attaches the slide and returns it
+        blocks = slide.blocks
+
+        # Block 0: body paragraphs and notes (a block may hold multiple Texts).
+        if blocks:
+            for para in ps["body"]:
+                try:
+                    blocks[0].add_content(Text(text=para))
+                except Exception:
+                    continue
+            if ps["notes"]:
+                try:
+                    blocks[0].add_content(Text(text=f"Notes: {ps['notes']}"))
+                except Exception:
+                    pass
+
+        # Remaining blocks: one image each.
+        for i, img in enumerate(images, start=1):
+            if i >= len(blocks):
+                break
             try:
-                _slide_add_content(slide, Text(text=para))
-            except Exception:
-                continue
-
-        for img in ps["images"]:
-            try:
-                _slide_add_content(slide, Image(img["path"]))
+                blocks[i].add_content(Image(img["path"]))
                 yield _log(f"  • uploaded image {os.path.basename(img['path'])}")
             except Exception as e:
-                yield _log(f"  • image upload skipped ({type(e).__name__})", "warn")
-
-        if ps["notes"]:
-            try:
-                _slide_add_content(slide, Text(text=f"Notes: {ps['notes']}"))
-            except Exception:
-                pass
+                yield _log(f"  • image skipped ({type(e).__name__})", "warn")
 
     yield _log("Saving the briefing…")
-    item = None
-    try:
-        item = briefing.save(title=cover_title, publish=False)
-    except TypeError:
-        item = briefing.save()
-    except Exception as e:
-        yield _log(f"save() raised {type(e).__name__}; the draft may still exist.", "warn")
+    item = briefing.save(title=cover_title, publish=False)
 
-    item_id = getattr(item, "id", None) if item else None
+    item_id = getattr(item, "id", None) or getattr(briefing, "_itemid", None)
     portal = gis.url.rstrip("/")
     yield {
         "type": "end",
